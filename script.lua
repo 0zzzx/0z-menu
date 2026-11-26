@@ -338,3 +338,28 @@ RunService:BindToRenderStep("0zAimbot", AIM_PRIORITY, function()
     if not Config.AimbotEnabled or not aimHeld then currentTarget = nil return end
 
     if Config.AimLockOnTarget and currentTarget
+ then
+        local char = currentTarget.Parent local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not char or not hum or hum.Health <= 0 or not isVisible(currentTarget) then currentTarget = nil end
+    end
+
+    if not currentTarget or not Config.AimLockOnTarget then currentTarget = getBestTarget() end
+    if not currentTarget then return end
+
+    local camPos = Camera.CFrame.Position local desired = CFrame.lookAt(camPos, predictPosition(currentTarget))
+    local alpha = math.clamp(Config.AimbotSmoothness, 0.01, 1)
+    if Config.AimHumanize then alpha = alpha * (0.85 + math.random() * 0.3) end
+    Camera.CFrame = Camera.CFrame:Lerp(desired, alpha)
+end)
+
+RunService.RenderStepped:Connect(function()
+    Camera = workspace.CurrentCamera if not Camera then return end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            if Config.EspEnabled and isValidTarget(player, false) and player.Character then syncHighlight(player, player.Character)
+            else removeHighlight(player) end
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player) removeHighlight(player) if currentTarget and currentTarget.Parent == player.Character then currentTarget = nil end end)
