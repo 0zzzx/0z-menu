@@ -363,3 +363,40 @@ RunService.RenderStepped:Connect(function()
 end)
 
 Players.PlayerRemoving:Connect(function(player) removeHighlight(player) if currentTarget and currentTarget.Parent == player.Character then currentTarget = nil end end)
+
+-- ============================================================
+-- WATERMARK VIP (FPS + STATUS)
+-- ============================================================
+local wmGui = Instance.new("ScreenGui")
+wmGui.Name = "0zWatermark" wmGui.ResetOnSpawn = false wmGui.IgnoreGuiInset = true wmGui.Parent = getParentGui()
+
+local wmFrame = Instance.new("Frame")
+wmFrame.Size = UDim2.new(0, 150, 0, 32) wmFrame.Position = UDim2.new(0, 15, 0, 15)
+wmFrame.BackgroundColor3 = Theme.Bg wmFrame.BorderSizePixel = 0 wmFrame.Parent = wmGui
+corner(wmFrame, 8) stroke(wmFrame, Theme.Stroke, 1)
+
+-- Pontinho de "Online" verde
+local dot = Instance.new("Frame")
+dot.Size = UDim2.new(0, 6, 0, 6) dot.Position = UDim2.new(0, 12, 0.5, -3)
+dot.BackgroundColor3 = Color3.fromRGB(34, 197, 94) dot.BorderSizePixel = 0 dot.Parent = wmFrame
+corner(dot, 10)
+
+-- Texto da Watermark
+local wmTxt = Instance.new("TextLabel")
+wmTxt.Size = UDim2.new(1, -24, 1, 0) wmTxt.Position = UDim2.new(0, 24, 0, 0)
+wmTxt.BackgroundTransparency = 1 wmTxt.Text = "0z MENU | FPS: 60" wmTxt.TextColor3 = Theme.Text
+wmTxt.Font = Enum.Font.GothamBold wmTxt.TextSize = 11 wmTxt.TextXAlignment = Enum.TextXAlignment.Left wmTxt.Parent = wmFrame
+
+-- Loop para atualizar o FPS e piscar o pontinho
+spawn(function()
+    while task.wait(0.5) do
+        wmTxt.Text = string.format("0z MENU | FPS: %d", math.floor(1 / RunService.RenderStepped:Wait()))
+        -- Efeito de piscar a bolinha verde
+        wmFrame:FindFirstChildOfClass("Frame") -- Apenas para não dar erro se o menu for fechado
+        if dot then
+            dot.BackgroundTransparency = 0
+            task.wait(0.15)
+            if dot then dot.BackgroundTransparency = 0.5 end
+        end
+    end
+end)
