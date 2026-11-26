@@ -337,8 +337,7 @@ RunService:BindToRenderStep("0zAimbot", AIM_PRIORITY, function()
     fovCircle.Visible = Config.AimbotEnabled and aimHeld
     if not Config.AimbotEnabled or not aimHeld then currentTarget = nil return end
 
-    if Config.AimLockOnTarget and currentTarget
- then
+    if Config.AimLockOnTarget and currentTarget then
         local char = currentTarget.Parent local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not char or not hum or hum.Health <= 0 or not isVisible(currentTarget) then currentTarget = nil end
     end
@@ -346,57 +345,4 @@ RunService:BindToRenderStep("0zAimbot", AIM_PRIORITY, function()
     if not currentTarget or not Config.AimLockOnTarget then currentTarget = getBestTarget() end
     if not currentTarget then return end
 
-    local camPos = Camera.CFrame.Position local desired = CFrame.lookAt(camPos, predictPosition(currentTarget))
-    local alpha = math.clamp(Config.AimbotSmoothness, 0.01, 1)
-    if Config.AimHumanize then alpha = alpha * (0.85 + math.random() * 0.3) end
-    Camera.CFrame = Camera.CFrame:Lerp(desired, alpha)
-end)
-
-RunService.RenderStepped:Connect(function()
-    Camera = workspace.CurrentCamera if not Camera then return end
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            if Config.EspEnabled and isValidTarget(player, false) and player.Character then syncHighlight(player, player.Character)
-            else removeHighlight(player) end
-        end
-    end
-end)
-
-Players.PlayerRemoving:Connect(function(player) removeHighlight(player) if currentTarget and currentTarget.Parent == player.Character then currentTarget = nil end end)
-
--- ============================================================
--- WATERMARK VIP (FPS + STATUS)
--- ============================================================
-local wmGui = Instance.new("ScreenGui")
-wmGui.Name = "0zWatermark" wmGui.ResetOnSpawn = false wmGui.IgnoreGuiInset = true wmGui.Parent = getParentGui()
-
-local wmFrame = Instance.new("Frame")
-wmFrame.Size = UDim2.new(0, 150, 0, 32) wmFrame.Position = UDim2.new(0, 15, 0, 15)
-wmFrame.BackgroundColor3 = Theme.Bg wmFrame.BorderSizePixel = 0 wmFrame.Parent = wmGui
-corner(wmFrame, 8) stroke(wmFrame, Theme.Stroke, 1)
-
--- Pontinho de "Online" verde
-local dot = Instance.new("Frame")
-dot.Size = UDim2.new(0, 6, 0, 6) dot.Position = UDim2.new(0, 12, 0.5, -3)
-dot.BackgroundColor3 = Color3.fromRGB(34, 197, 94) dot.BorderSizePixel = 0 dot.Parent = wmFrame
-corner(dot, 10)
-
--- Texto da Watermark
-local wmTxt = Instance.new("TextLabel")
-wmTxt.Size = UDim2.new(1, -24, 1, 0) wmTxt.Position = UDim2.new(0, 24, 0, 0)
-wmTxt.BackgroundTransparency = 1 wmTxt.Text = "0z MENU | FPS: 60" wmTxt.TextColor3 = Theme.Text
-wmTxt.Font = Enum.Font.GothamBold wmTxt.TextSize = 11 wmTxt.TextXAlignment = Enum.TextXAlignment.Left wmTxt.Parent = wmFrame
-
--- Loop para atualizar o FPS e piscar o pontinho
-spawn(function()
-    while task.wait(0.5) do
-        wmTxt.Text = string.format("0z MENU | FPS: %d", math.floor(1 / RunService.RenderStepped:Wait()))
-        -- Efeito de piscar a bolinha verde
-        wmFrame:FindFirstChildOfClass("Frame") -- Apenas para não dar erro se o menu for fechado
-        if dot then
-            dot.BackgroundTransparency = 0
-            task.wait(0.15)
-            if dot then dot.BackgroundTransparency = 0.5 end
-        end
-    end
-end)
+    local camPos = Camera.CFrame.Position local desired = CFrame.l
