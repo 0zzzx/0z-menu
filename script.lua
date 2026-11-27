@@ -55,7 +55,6 @@ local DefaultConfig = {
 	EspFillTransparency = 0.65,
 	EspDepthMode = "AlwaysOnTop",
 	AimbotEnabled = true,
-	AimKey = Enum.UserInputType.MouseButton2,
 	AimToggleKey = Enum.KeyCode.H,
 	AimPart = "Head",
 	AimFOV = 250,
@@ -82,7 +81,6 @@ local Config = {
 	EspFillTransparency = DefaultConfig.EspFillTransparency,
 	EspDepthMode = DefaultConfig.EspDepthMode,
 	AimbotEnabled = DefaultConfig.AimbotEnabled,
-	AimKey = DefaultConfig.AimKey,
 	AimToggleKey = DefaultConfig.AimToggleKey,
 	AimPart = DefaultConfig.AimPart,
 	AimFOV = DefaultConfig.AimFOV,
@@ -104,8 +102,6 @@ local Config = {
 local SavedSessionJson = nil
 
 local function serializeConfig()
-	local keyType = (typeof(Config.AimKey) == "EnumItem") and Config.AimKey.EnumType.Name or "UserInputType"
-	local keyName = (typeof(Config.AimKey) == "EnumItem") and Config.AimKey.Name or "MouseButton2"
 	return {
 		EspEnabled = Config.EspEnabled,
 		TeamCheck = Config.TeamCheck,
@@ -117,8 +113,6 @@ local function serializeConfig()
 		EspFillTransparency = Config.EspFillTransparency,
 		EspDepthMode = Config.EspDepthMode,
 		AimbotEnabled = Config.AimbotEnabled,
-		AimKeyEnumType = keyType,
-		AimKeyName = keyName,
 		AimToggleKeyName = Config.AimToggleKey.Name,
 		AimPart = Config.AimPart,
 		AimFOV = Config.AimFOV,
@@ -151,11 +145,6 @@ local function applySerializedConfig(data)
 	if type(data.EspFillTransparency) == "number" then Config.EspFillTransparency = data.EspFillTransparency end
 	if data.EspDepthMode == "AlwaysOnTop" or data.EspDepthMode == "Occluded" then Config.EspDepthMode = data.EspDepthMode end
 	if type(data.AimbotEnabled) == "boolean" then Config.AimbotEnabled = data.AimbotEnabled end
-	if data.AimKeyEnumType == "KeyCode" and Enum.KeyCode[data.AimKeyName] then
-		Config.AimKey = Enum.KeyCode[data.AimKeyName]
-	elseif data.AimKeyName and Enum.UserInputType[data.AimKeyName] then
-		Config.AimKey = Enum.UserInputType[data.AimKeyName]
-	end
 	if data.AimToggleKeyName and Enum.KeyCode[data.AimToggleKeyName] then
 		Config.AimToggleKey = Enum.KeyCode[data.AimToggleKeyName]
 	end
@@ -244,7 +233,7 @@ local function saveCurrentConfig()
 		end
 	end
 
-	return true, "Alterações salvas com sucesso! (Sessão/Atributo)", "Salvo"
+	return true, "Alterações salvas com sucesso!", "Salvo"
 end
 
 loadSavedConfig()
@@ -261,6 +250,7 @@ local aimHeld, fireHeld, currentTarget = false, false, nil
 local lastCameraLook = nil
 local IS_SLIDER_DRAGGING = false
 local IS_DROPDOWN_OPEN = false
+local NotifyCallback = nil
 
 local SyncCallbacks = {}
 local function registerSync(key, fn)
@@ -420,29 +410,30 @@ local function createUI()
 	screenGui.Name = GuiName
 	screenGui.ResetOnSpawn = false
 	screenGui.IgnoreGuiInset = true
+	screenGui.DisplayOrder = 9999
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.Parent = parentGui
 
-	-- Banner de Notificação ao Salvar / Resetar
+	-- Banner de Notificação ao Salvar / Resetar / Alternar Aim
 	local toastFrame = Instance.new("Frame")
 	toastFrame.Name = "SaveNotification"
-	toastFrame.Size = UDim2.new(0, 310, 0, 54)
-	toastFrame.Position = UDim2.new(1, 330, 0, 22)
+	toastFrame.Size = UDim2.new(0, 316, 0, 56)
+	toastFrame.Position = UDim2.new(1, -334, 0, 22)
 	toastFrame.BackgroundColor3 = Theme.Panel
-	toastFrame.BackgroundTransparency = 0.05
+	toastFrame.BackgroundTransparency = 0
 	toastFrame.BorderSizePixel = 0
-	toastFrame.ZIndex = 100
+	toastFrame.ZIndex = 200
 	toastFrame.Visible = false
 	toastFrame.Parent = screenGui
 	corner(toastFrame, 12)
-	local toastStroke = stroke(toastFrame, Theme.Accent2, 1.5, 0.15)
+	local toastStroke = stroke(toastFrame, Theme.Accent2, 1.8, 0.05)
 
 	local toastBar = Instance.new("Frame")
 	toastBar.Size = UDim2.new(0, 5, 1, -12)
 	toastBar.Position = UDim2.new(0, 6, 0, 6)
 	toastBar.BackgroundColor3 = Theme.Accent2
 	toastBar.BorderSizePixel = 0
-	toastBar.ZIndex = 101
+	toastBar.ZIndex = 201
 	toastBar.Parent = toastFrame
 	corner(toastBar, 3)
 
@@ -450,46 +441,46 @@ local function createUI()
 	toastTitle.Size = UDim2.new(1, -26, 0, 18)
 	toastTitle.Position = UDim2.new(0, 18, 0, 8)
 	toastTitle.BackgroundTransparency = 1
-	toastTitle.Text = "Configuração Salva"
+	toastTitle.Text = "Salvo"
 	toastTitle.TextColor3 = Theme.Text
 	toastTitle.Font = Enum.Font.GothamBold
-	toastTitle.TextSize = 12
+	toastTitle.TextSize = 13
 	toastTitle.TextXAlignment = Enum.TextXAlignment.Left
-	toastTitle.ZIndex = 101
+	toastTitle.ZIndex = 201
 	toastTitle.Parent = toastFrame
 
 	local toastMsg = Instance.new("TextLabel")
-	toastMsg.Size = UDim2.new(1, -26, 0, 16)
-	toastMsg.Position = UDim2.new(0, 18, 0, 27)
+	toastMsg.Size = UDim2.new(1, -26, 0, 18)
+	toastMsg.Position = UDim2.new(0, 18, 0, 28)
 	toastMsg.BackgroundTransparency = 1
-	toastMsg.Text = "Suas alterações foram salvas."
+	toastMsg.Text = "Alterações salvas com sucesso!"
 	toastMsg.TextColor3 = Theme.TextDim
 	toastMsg.Font = Enum.Font.GothamMedium
 	toastMsg.TextSize = 11
 	toastMsg.TextXAlignment = Enum.TextXAlignment.Left
-	toastMsg.ZIndex = 101
+	toastMsg.ZIndex = 201
 	toastMsg.Parent = toastFrame
 
 	local toastToken = 0
 	local function showSaveNotification(titleText, bodyText, isError)
 		toastToken = toastToken + 1
 		local myToken = toastToken
-		toastTitle.Text = titleText or "Configuração Salva"
-		toastMsg.Text = bodyText or "Suas alterações foram salvas."
+		toastTitle.Text = titleText or "Salvo"
+		toastMsg.Text = bodyText or "Alterações salvas com sucesso!"
 		local accentCol = isError and Theme.Danger or Theme.Accent2
 		toastStroke.Color = accentCol
 		toastBar.BackgroundColor3 = accentCol
 		toastFrame.Visible = true
-		toastFrame.Position = UDim2.new(1, 330, 0, 22)
+		toastFrame.Position = UDim2.new(1, 360, 0, 22)
 
-		TweenService:Create(toastFrame, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-			Position = UDim2.new(1, -332, 0, 22),
+		TweenService:Create(toastFrame, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Position = UDim2.new(1, -334, 0, 22),
 		}):Play()
 
-		task.delay(2.8, function()
+		task.delay(2.2, function()
 			if toastToken == myToken and toastFrame and toastFrame.Parent then
-				local hideTween = TweenService:Create(toastFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-					Position = UDim2.new(1, 330, 0, 22),
+				local hideTween = TweenService:Create(toastFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					Position = UDim2.new(1, 360, 0, 22),
 				})
 				hideTween:Play()
 				hideTween.Completed:Connect(function()
@@ -500,6 +491,8 @@ local function createUI()
 			end
 		end)
 	end
+
+	NotifyCallback = showSaveNotification
 
 	local mainFrame = Instance.new("Frame")
 	mainFrame.Name = "MainFrame"
@@ -1512,11 +1505,11 @@ local function createUI()
 			TweenService:Create(btnStroke, TweenInfo.new(0.12), { Thickness = 2.2, Transparency = 0 }):Play()
 
 			local okSaved, msg, badgeTitle = onClick()
-			showSaveNotification(badgeTitle or "Configuração Salva", msg or "Alterações salvas!", not okSaved)
+			showSaveNotification(badgeTitle or "Salvo", msg or "Alterações salvas com sucesso!", not okSaved)
 
 			if msg then
-				btn.Text = okSaved and "✓ " .. (badgeTitle or "Pronto!") or "✕ Erro!"
-				statusValue.Text = okSaved and (msg or "Concluído!") or "Falha ao salvar"
+				btn.Text = okSaved and ("✓ " .. (badgeTitle or "Salvo!")) or "✕ Erro!"
+				statusValue.Text = okSaved and (badgeTitle or "Salvo!") or "Falha ao salvar"
 				task.delay(1.5, function()
 					if btn and btn.Parent then
 						btn.Text = buttonText
@@ -1579,7 +1572,6 @@ local function createUI()
 		Config.EspFillTransparency = DefaultConfig.EspFillTransparency
 		Config.EspDepthMode = DefaultConfig.EspDepthMode
 		Config.AimbotEnabled = DefaultConfig.AimbotEnabled
-		Config.AimKey = DefaultConfig.AimKey
 		Config.AimToggleKey = DefaultConfig.AimToggleKey
 		Config.AimPart = DefaultConfig.AimPart
 		Config.AimFOV = DefaultConfig.AimFOV
@@ -1616,7 +1608,6 @@ local function createUI()
 		emitSync("MenuKey", Config.MenuKey)
 		emitSync("MenuOpen", Config.MenuOpen)
 		emitSync("AimbotEnabled", Config.AimbotEnabled)
-		emitSync("AimKey", Config.AimKey)
 		emitSync("AimToggleKey", Config.AimToggleKey)
 		emitSync("AimPart", formatAimPart(Config.AimPart))
 		emitSync("AimFOV", Config.AimFOV)
@@ -1681,14 +1672,11 @@ local function createUI()
 		mainFrame.Visible = v
 	end, ord(), "MenuOpen")
 
-	local aimCard = createGroupCard(combatPage, "Aimbot", "⊕", UDim2.new(0.505, 0, 0, 0), UDim2.new(0.495, 0, 0, 520))
+	local aimCard = createGroupCard(combatPage, "Aimbot", "⊕", UDim2.new(0.505, 0, 0, 0), UDim2.new(0.495, 0, 0, 488))
 	o = 0
 	addToggle(aimCard, "Ativar Aimbot", Config.AimbotEnabled, function(v)
 		Config.AimbotEnabled = v
 	end, ord(), "AimbotEnabled")
-	addKeybind(aimCard, "Tecla de Mira", Config.AimKey, true, function(newBind)
-		Config.AimKey = newBind
-	end, ord(), "AimKey")
 	addKeybind(aimCard, "Alternar Mira", Config.AimToggleKey, false, function(newKey)
 		Config.AimToggleKey = newKey
 	end, ord(), "AimToggleKey")
@@ -1788,17 +1776,6 @@ end
 
 local MainMenuFrame = createUI()
 
-local function matchesAimInput(input)
-	if typeof(Config.AimKey) == "EnumItem" then
-		if Config.AimKey.EnumType == Enum.UserInputType then
-			return input.UserInputType == Config.AimKey
-		elseif Config.AimKey.EnumType == Enum.KeyCode then
-			return input.KeyCode == Config.AimKey
-		end
-	end
-	return false
-end
-
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if not gameProcessed and input.KeyCode == Config.MenuKey then
 		Config.MenuOpen = not Config.MenuOpen
@@ -1809,9 +1786,16 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 	if not gameProcessed and input.KeyCode == Config.AimToggleKey then
 		aimHeld = not aimHeld
-	end
-	if matchesAimInput(input) then
-		aimHeld = true
+		if not aimHeld then
+			currentTarget = nil
+		end
+		if NotifyCallback then
+			if aimHeld then
+				NotifyCallback("Aim Ativado", "Mira travada/ativa via tecla " .. formatInputName(Config.AimToggleKey) .. ".", false)
+			else
+				NotifyCallback("Aim Desativado", "Mira desativada via tecla " .. formatInputName(Config.AimToggleKey) .. ".", true)
+			end
+		end
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		fireHeld = true
@@ -1819,16 +1803,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 UserInputService.InputEnded:Connect(function(input)
-	if matchesAimInput(input) then
-		aimHeld = false
-	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		fireHeld = false
 	end
 end)
 
 UserInputService.WindowFocusReleased:Connect(function()
-	aimHeld = false
 	fireHeld = false
 end)
 
@@ -1904,11 +1884,14 @@ local function syncHighlight(player, character)
 end
 
 local function predictPosition(part)
-	if not Config.AimPrediction then
+	if not Config.AimPrediction or not Camera then
 		return part.Position
 	end
-	local root = part.Parent and part.Parent:FindFirstChild("HumanoidRootPart")
-	return part.Position + ((root and root.AssemblyLinearVelocity or Vector3.zero) * Config.AimPredictionAmount)
+	local root = part.Parent and (part.Parent:FindFirstChild("HumanoidRootPart") or part.Parent:FindFirstChild("UpperTorso"))
+	local vel = (root and root.AssemblyLinearVelocity) or part.AssemblyLinearVelocity or Vector3.zero
+	local dist = (part.Position - Camera.CFrame.Position).Magnitude
+	local leadTime = Config.AimPredictionAmount * (1 + math.clamp(dist / 250, 0, 0.75))
+	return part.Position + (vel * leadTime)
 end
 
 local function isTargetInRangeAndFOV(part)
@@ -1944,9 +1927,9 @@ local function getBestTarget()
 				if onScreen and screenPos.Z > 0 then
 					local d = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
 					if d <= Config.AimFOV then
-						local score = d
+						local score = d + (dist3D * 0.08)
 						if currentTarget == targetPart then
-							score = score - 100
+							score = score - 120
 						end
 						if score < bestScore then
 							bestScore = score
@@ -2004,12 +1987,19 @@ RunService:BindToRenderStep("0zAimbot", AIM_PRIORITY, function()
 		return
 	end
 
+	local aimWorldPos = predictPosition(currentTarget)
 	local camPos = Camera.CFrame.Position
-	local desired = CFrame.lookAt(camPos, predictPosition(currentTarget))
-	local alpha = math.clamp(Config.AimbotSmoothness, 0.01, 1)
-	if Config.AimHumanize then
-		alpha = alpha * (0.85 + math.random() * 0.3)
+	local toTarget = (aimWorldPos - camPos).Unit
+	local angleRad = math.acos(math.clamp(Camera.CFrame.LookVector:Dot(toTarget), -1, 1))
+	local desired = CFrame.lookAt(camPos, aimWorldPos)
+
+	local alpha = math.clamp(Config.AimbotSmoothness, 0.02, 1)
+	if angleRad < 0.015 then
+		alpha = math.clamp(alpha * 0.65, 0.02, 0.85)
+	elseif Config.AimHumanize then
+		alpha = math.clamp(alpha * (0.9 + math.random() * 0.2), 0.02, 1)
 	end
+
 	Camera.CFrame = Camera.CFrame:Lerp(desired, alpha)
 	lastCameraLook = Camera.CFrame.LookVector
 end)
