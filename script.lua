@@ -61,6 +61,7 @@ local DefaultConfig = {
 	AimbotSmoothness = 0.35,
 	AimMaxDistance = 1000,
 	AimVisibleOnly = false,
+	AimNoWall = false,
 	AimPrediction = false,
 	AimPredictionAmount = 0.15,
 	AimLockOnTarget = true,
@@ -87,6 +88,7 @@ local Config = {
 	AimbotSmoothness = DefaultConfig.AimbotSmoothness,
 	AimMaxDistance = DefaultConfig.AimMaxDistance,
 	AimVisibleOnly = DefaultConfig.AimVisibleOnly,
+	AimNoWall = DefaultConfig.AimNoWall,
 	AimPrediction = DefaultConfig.AimPrediction,
 	AimPredictionAmount = DefaultConfig.AimPredictionAmount,
 	AimLockOnTarget = DefaultConfig.AimLockOnTarget,
@@ -100,6 +102,21 @@ local Config = {
 }
 
 local SavedSessionJson = nil
+local Highlights, GuiName = {}, "0zMenuEspUI"
+
+local function applyEspColorsToAll(col)
+	if typeof(col) ~= "Color3" then
+		return
+	end
+	Config.EspFillColor = col
+	Config.EspOutlineColor = col
+	for _, hl in pairs(Highlights) do
+		if hl and hl.Parent then
+			hl.FillColor = col
+			hl.OutlineColor = col
+		end
+	end
+end
 
 local function serializeConfig()
 	return {
@@ -119,6 +136,7 @@ local function serializeConfig()
 		AimbotSmoothness = Config.AimbotSmoothness,
 		AimMaxDistance = Config.AimMaxDistance,
 		AimVisibleOnly = Config.AimVisibleOnly,
+		AimNoWall = Config.AimNoWall,
 		AimPrediction = Config.AimPrediction,
 		AimLockOnTarget = Config.AimLockOnTarget,
 		AimIgnoreFriends = Config.AimIgnoreFriends,
@@ -138,7 +156,10 @@ local function applySerializedConfig(data)
 	if type(data.EspEnabled) == "boolean" then Config.EspEnabled = data.EspEnabled end
 	if type(data.TeamCheck) == "boolean" then Config.TeamCheck = data.TeamCheck end
 	if type(data.EspColor) == "table" and #data.EspColor == 3 then
-		local c = Color3.fromRGB(data.EspColor[1], data.EspColor[2], data.EspColor[3])
+		local r = math.clamp(tonumber(data.EspColor[1]) or 255, 0, 255)
+		local g = math.clamp(tonumber(data.EspColor[2]) or 255, 0, 255)
+		local b = math.clamp(tonumber(data.EspColor[3]) or 255, 0, 255)
+		local c = Color3.fromRGB(r, g, b)
 		Config.EspFillColor = c
 		Config.EspOutlineColor = c
 	end
@@ -155,6 +176,7 @@ local function applySerializedConfig(data)
 	if type(data.AimbotSmoothness) == "number" then Config.AimbotSmoothness = data.AimbotSmoothness end
 	if type(data.AimMaxDistance) == "number" then Config.AimMaxDistance = data.AimMaxDistance end
 	if type(data.AimVisibleOnly) == "boolean" then Config.AimVisibleOnly = data.AimVisibleOnly end
+	if type(data.AimNoWall) == "boolean" then Config.AimNoWall = data.AimNoWall end
 	if type(data.AimPrediction) == "boolean" then Config.AimPrediction = data.AimPrediction end
 	if type(data.AimLockOnTarget) == "boolean" then Config.AimLockOnTarget = data.AimLockOnTarget end
 	if type(data.AimIgnoreFriends) == "boolean" then Config.AimIgnoreFriends = data.AimIgnoreFriends end
@@ -238,7 +260,6 @@ end
 
 loadSavedConfig()
 
-local Highlights, GuiName = {}, "0zMenuEspUI"
 local friendCache = {}
 pcall(function()
 	for _, f in ipairs(LocalPlayer:GetFriendsOnline(200)) do
@@ -251,6 +272,16 @@ local lastCameraLook = nil
 local IS_SLIDER_DRAGGING = false
 local IS_DROPDOWN_OPEN = false
 local NotifyCallback = nil
+
+local function getPlayerDisplayName()
+	if not LocalPlayer then
+		return "Jogador"
+	end
+	if LocalPlayer.DisplayName and LocalPlayer.DisplayName ~= "" then
+		return LocalPlayer.DisplayName
+	end
+	return LocalPlayer.Name or "Jogador"
+end
 
 local SyncCallbacks = {}
 local function registerSync(key, fn)
@@ -414,7 +445,7 @@ local function createUI()
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.Parent = parentGui
 
-	-- Banner de Notificação ao Salvar / Resetar / Alternar Aim
+	-- Banner de Notificação ao Salvar / Resetar / Alternar Aim / Abrir Menu
 	local toastFrame = Instance.new("Frame")
 	toastFrame.Name = "SaveNotification"
 	toastFrame.Size = UDim2.new(0, 316, 0, 56)
@@ -517,6 +548,16 @@ local function createUI()
 		local clamped = math.clamp(scaleVal, 0.75, 1.35)
 		Config.UiScale = clamped
 		uiScale.Scale = clamped
+	end
+
+	local function setMenuVisibility(openState)
+		local wasOpen = Config.MenuOpen
+		Config.MenuOpen = openState
+		mainFrame.Visible = openState
+		emitSync("MenuOpen", openState)
+		if openState and not wasOpen and NotifyCallback then
+			NotifyCallback("Bem vindo!", "Bem vindo! " .. getPlayerDisplayName(), false)
+		end
 	end
 
 	local dragging, dragStart, startPos = false, nil, nil
@@ -1047,6 +1088,13 @@ local function createUI()
 		end)
 	end
 
+	local function colorsClose(a, b)
+		if typeof(a) ~= "Color3" or typeof(b) ~= "Color3" then
+			return false
+		end
+		return math.abs(a.R - b.R) < 0.01 and math.abs(a.G - b.G) < 0.01 and math.abs(a.B - b.B) < 0.01
+	end
+
 	local function addColorDot(parent, labelText, initialColor, onSelect, order)
 		local row = Instance.new("Frame")
 		row.Size = UDim2.new(1, 0, 0, 28)
@@ -1093,7 +1141,7 @@ local function createUI()
 			for _, b in ipairs(buttons) do
 				local st = b:FindFirstChildOfClass("UIStroke")
 				if st then
-					local isMatch = (b.BackgroundColor3 == col)
+					local isMatch = colorsClose(b.BackgroundColor3, col)
 					st.Color = isMatch and Theme.Accent2 or Theme.Stroke
 					st.Thickness = isMatch and 2 or 1
 				end
@@ -1124,6 +1172,7 @@ local function createUI()
 			btn.MouseButton1Click:Connect(function()
 				updateSelected(col)
 				onSelect(col)
+				emitSync("EspFillColor", col)
 			end)
 		end
 		updateSelected(initialColor)
@@ -1567,8 +1616,7 @@ local function createUI()
 	local function resetToDefaultConfig()
 		Config.EspEnabled = DefaultConfig.EspEnabled
 		Config.TeamCheck = DefaultConfig.TeamCheck
-		Config.EspFillColor = DefaultConfig.EspFillColor
-		Config.EspOutlineColor = DefaultConfig.EspOutlineColor
+		applyEspColorsToAll(DefaultConfig.EspFillColor)
 		Config.EspFillTransparency = DefaultConfig.EspFillTransparency
 		Config.EspDepthMode = DefaultConfig.EspDepthMode
 		Config.AimbotEnabled = DefaultConfig.AimbotEnabled
@@ -1578,6 +1626,7 @@ local function createUI()
 		Config.AimbotSmoothness = DefaultConfig.AimbotSmoothness
 		Config.AimMaxDistance = DefaultConfig.AimMaxDistance
 		Config.AimVisibleOnly = DefaultConfig.AimVisibleOnly
+		Config.AimNoWall = DefaultConfig.AimNoWall
 		Config.AimPrediction = DefaultConfig.AimPrediction
 		Config.AimLockOnTarget = DefaultConfig.AimLockOnTarget
 		Config.AimIgnoreFriends = DefaultConfig.AimIgnoreFriends
@@ -1587,13 +1636,6 @@ local function createUI()
 		Config.MenuKey = DefaultConfig.MenuKey
 		Config.UiScale = DefaultConfig.UiScale
 		Config.ThemeName = DefaultConfig.ThemeName
-
-		for _, hl in pairs(Highlights) do
-			if hl then
-				hl:Destroy()
-			end
-		end
-		table.clear(Highlights)
 
 		mainFrame.Visible = Config.MenuOpen
 		setUiScale(Config.UiScale)
@@ -1614,6 +1656,7 @@ local function createUI()
 		emitSync("AimbotSmoothness", Config.AimbotSmoothness)
 		emitSync("AimMaxDistance", Config.AimMaxDistance)
 		emitSync("AimVisibleOnly", Config.AimVisibleOnly)
+		emitSync("AimNoWall", Config.AimNoWall)
 		emitSync("AimPrediction", Config.AimPrediction)
 		emitSync("AimLockOnTarget", Config.AimLockOnTarget)
 		emitSync("AimIgnoreFriends", Config.AimIgnoreFriends)
@@ -1668,11 +1711,10 @@ local function createUI()
 		Config.MenuKey = newKey
 	end, ord(), "MenuKey")
 	addToggle(miscCard, "Menu Aberto", Config.MenuOpen, function(v)
-		Config.MenuOpen = v
-		mainFrame.Visible = v
+		setMenuVisibility(v)
 	end, ord(), "MenuOpen")
 
-	local aimCard = createGroupCard(combatPage, "Aimbot", "⊕", UDim2.new(0.505, 0, 0, 0), UDim2.new(0.495, 0, 0, 488))
+	local aimCard = createGroupCard(combatPage, "Aimbot", "⊕", UDim2.new(0.505, 0, 0, 0), UDim2.new(0.495, 0, 0, 520))
 	o = 0
 	addToggle(aimCard, "Ativar Aimbot", Config.AimbotEnabled, function(v)
 		Config.AimbotEnabled = v
@@ -1695,6 +1737,12 @@ local function createUI()
 	addToggle(aimCard, "Apenas Visíveis", Config.AimVisibleOnly, function(v)
 		Config.AimVisibleOnly = v
 	end, ord(), "AimVisibleOnly")
+	addToggle(aimCard, "Sem Parede", Config.AimNoWall, function(v)
+		Config.AimNoWall = v
+		if v and currentTarget and not isVisible(currentTarget) then
+			currentTarget = nil
+		end
+	end, ord(), "AimNoWall")
 	addToggle(aimCard, "Previsão de Movimento", Config.AimPrediction, function(v)
 		Config.AimPrediction = v
 	end, ord(), "AimPrediction")
@@ -1720,14 +1768,7 @@ local function createUI()
 		Config.TeamCheck = v
 	end, ord(), "TeamCheck")
 	addColorDot(visEspCard, "Cor do ESP", Config.EspFillColor, function(col)
-		Config.EspFillColor = col
-		Config.EspOutlineColor = col
-		for _, hl in pairs(Highlights) do
-			if hl then
-				hl:Destroy()
-			end
-		end
-		table.clear(Highlights)
+		applyEspColorsToAll(col)
 	end, ord())
 	addSlider(visEspCard, "Transparência", 0, 1, Config.EspFillTransparency, function(v)
 		Config.EspFillTransparency = v
@@ -1759,8 +1800,7 @@ local function createUI()
 		Config.AimToggleKey = newKey
 	end, ord(), "AimToggleKey")
 	addToggle(menuSetCard, "Menu Aberto", Config.MenuOpen, function(v)
-		Config.MenuOpen = v
-		mainFrame.Visible = v
+		setMenuVisibility(v)
 	end, ord(), "MenuOpen")
 	addActionButton(menuSetCard, "Salvar Alterações", "Salvar Mudanças", function()
 		return saveCurrentConfig()
@@ -1771,6 +1811,10 @@ local function createUI()
 
 	setTab("combat")
 	applyThemePreset(Config.ThemeName)
+	emitSync("EspFillColor", Config.EspFillColor)
+	if Config.MenuOpen and NotifyCallback then
+		NotifyCallback("Bem vindo!", "Bem vindo! " .. getPlayerDisplayName(), false)
+	end
 	return mainFrame
 end
 
@@ -1778,11 +1822,15 @@ local MainMenuFrame = createUI()
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if not gameProcessed and input.KeyCode == Config.MenuKey then
-		Config.MenuOpen = not Config.MenuOpen
+		local nextOpen = not Config.MenuOpen
+		Config.MenuOpen = nextOpen
 		if MainMenuFrame then
-			MainMenuFrame.Visible = Config.MenuOpen
+			MainMenuFrame.Visible = nextOpen
 		end
-		emitSync("MenuOpen", Config.MenuOpen)
+		emitSync("MenuOpen", nextOpen)
+		if nextOpen and NotifyCallback then
+			NotifyCallback("Bem vindo!", "Bem vindo! " .. getPlayerDisplayName(), false)
+		end
 	end
 	if not gameProcessed and input.KeyCode == Config.AimToggleKey then
 		aimHeld = not aimHeld
@@ -1845,15 +1893,23 @@ local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local function isVisible(part)
-	if not Config.AimVisibleOnly then
+	if not Config.AimVisibleOnly and not Config.AimNoWall then
 		return true
 	end
-	if not part or not LocalPlayer.Character then
+	if not part or not Camera then
 		return true
 	end
-	rayParams.FilterDescendantsInstances = { LocalPlayer.Character }
-	local result = workspace:Raycast(Camera.CFrame.Position, part.Position - Camera.CFrame.Position, rayParams)
-	return result == nil or result.Instance:IsDescendantOf(part.Parent)
+	local ignoreList = {}
+	if LocalPlayer and LocalPlayer.Character then
+		table.insert(ignoreList, LocalPlayer.Character)
+	end
+	if part.Parent then
+		table.insert(ignoreList, part.Parent)
+	end
+	rayParams.FilterDescendantsInstances = ignoreList
+	local direction = part.Position - Camera.CFrame.Position
+	local result = workspace:Raycast(Camera.CFrame.Position, direction, rayParams)
+	return result == nil
 end
 
 local function removeHighlight(player)
