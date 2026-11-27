@@ -128,7 +128,6 @@ local function createUI()
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.Parent = parentGui
 
-	-- Brilho externo roxo suave ao redor da janela
 	local outerGlow = Instance.new("Frame")
 	outerGlow.Name = "OuterGlow"
 	outerGlow.Size = UDim2.new(0, 796, 0, 516)
@@ -153,7 +152,6 @@ local function createUI()
 	corner(mainFrame, 16)
 	stroke(mainFrame, Theme.StrokeGlow, 1.4, 0.25)
 
-	-- Arrastar janela pelo topo ou barra lateral
 	local dragging, dragStart, startPos = false, nil, nil
 	mainFrame.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -179,7 +177,6 @@ local function createUI()
 		end
 	end)
 
-	-- Sidebar esquerda (logo Oz, navegação vertical e status)
 	local sidebarWidth = 178
 	local sidebar = Instance.new("Frame")
 	sidebar.Name = "Sidebar"
@@ -198,7 +195,6 @@ local function createUI()
 	sidebarDivider.BorderSizePixel = 0
 	sidebarDivider.Parent = sidebar
 
-	-- Logo "Oz" estilizado
 	local logoBox = Instance.new("Frame")
 	logoBox.Size = UDim2.new(1, -24, 0, 84)
 	logoBox.Position = UDim2.new(0, 12, 0, 12)
@@ -210,7 +206,7 @@ local function createUI()
 	ozLabel.BackgroundTransparency = 1
 	ozLabel.Text = "Oz"
 	ozLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	ozLabel.Font = Enum.Font.GothamBlackItalic
+	ozLabel.Font = Enum.Font.GothamBoldItalic
 	ozLabel.TextSize = 54
 	ozLabel.Parent = logoBox
 	makeGradient(ozLabel, Color3.fromRGB(255, 255, 255), Theme.PurpleBright, 45)
@@ -219,7 +215,6 @@ local function createUI()
 	ozStroke.Thickness = 2
 	ozStroke.Parent = ozLabel
 
-	-- Navegação lateral
 	local navHolder = Instance.new("Frame")
 	navHolder.Size = UDim2.new(1, -20, 1, -172)
 	navHolder.Position = UDim2.new(0, 10, 0, 104)
@@ -231,7 +226,6 @@ local function createUI()
 	navLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	navLayout.Parent = navHolder
 
-	-- Status inferior na sidebar
 	local statusCard = Instance.new("Frame")
 	statusCard.Size = UDim2.new(1, -20, 0, 54)
 	statusCard.Position = UDim2.new(0, 10, 1, -66)
@@ -272,7 +266,6 @@ local function createUI()
 	statusSub.TextXAlignment = Enum.TextXAlignment.Left
 	statusSub.Parent = statusCard
 
-	-- Área principal à direita
 	local contentArea = Instance.new("Frame")
 	contentArea.Name = "ContentArea"
 	contentArea.Size = UDim2.new(1, -sidebarWidth, 1, 0)
@@ -280,7 +273,6 @@ local function createUI()
 	contentArea.BackgroundTransparency = 1
 	contentArea.Parent = mainFrame
 
-	-- Header superior
 	local header = Instance.new("Frame")
 	header.Size = UDim2.new(1, 0, 0, 62)
 	header.BackgroundColor3 = Theme.Sidebar
@@ -373,7 +365,6 @@ local function createUI()
 		outerGlow.Visible = false
 	end)
 
-	-- Páginas de navegação
 	local pages, navButtons = {}, {}
 	local function setTab(name)
 		for n, p in pairs(pages) do
@@ -469,7 +460,6 @@ local function createUI()
 	local settingsPage = createNavItem("settings", "≡", "Settings", 4)
 	local creditsPage = createNavItem("credits", "★", "Credits", 5)
 
-	-- Helpers de cartões e controles
 	local function makeCard(parent, titleText, iconChar, layoutOrder)
 		local card = Instance.new("Frame")
 		card.BackgroundColor3 = Theme.Card
@@ -854,7 +844,6 @@ local function createUI()
 		end)
 	end
 
-	-- Layout principal em 2 colunas (Combat: ESP + Misc à esquerda | Aimbot à direita)
 	local leftCol = Instance.new("Frame")
 	leftCol.Size = UDim2.new(0.48, -6, 0, 0)
 	leftCol.AutomaticSize = Enum.AutomaticSize.Y
@@ -878,7 +867,6 @@ local function createUI()
 	rightList.SortOrder = Enum.SortOrder.LayoutOrder
 	rightList.Parent = rightCol
 
-	-- Cartão ESP (Esquerda superior)
 	local _, espBody = makeCard(leftCol, "ESP", "🖥", 1)
 	local eo = 0
 	local function eOrd()
@@ -908,7 +896,6 @@ local function createUI()
 		Config.EspDepthMode = val
 	end, eOrd())
 
-	-- Cartão Misc (Esquerda inferior)
 	local _, miscBody = makeCard(leftCol, "Misc", "⚙", 2)
 	local mo = 0
 	local function mOrd()
@@ -928,7 +915,6 @@ local function createUI()
 		outerGlow.Visible = v
 	end, mOrd())
 
-	-- Cartão Aimbot (Direita)
 	local _, aimBody = makeCard(rightCol, "Aimbot", "◎", 1)
 	local ao = 0
 	local function aOrd()
@@ -980,19 +966,16 @@ local function createUI()
 		Config.AimHumanize = v
 	end, aOrd())
 
-	-- Aba Visuals (atalho rápido para Prediction Amt)
 	local _, visBody = makeCard(visualsPage, "Ballistics & Visuals", "◉", 1)
 	addSlider(visBody, "Prediction Amt", 0, 0.5, Config.AimPredictionAmount, function(v)
 		Config.AimPredictionAmount = v
 	end, 1)
 
-	-- Aba Misc dedicada
 	local _, miscTabBody = makeCard(miscPage, "Quick Utility", "⚙", 1)
 	addSlider(miscTabBody, "Recoil Reduction", 0, 1, Config.RecoilReduction, function(v)
 		Config.RecoilReduction = v
 	end, 1, "%")
 
-	-- Aba Settings dedicada
 	local _, setTabBody = makeCard(settingsPage, "Keybinds & Window", "≡", 1)
 	addKeyRow(setTabBody, "Menu Key", Config.MenuKey.Name, function(k)
 		Config.MenuKey = k
@@ -1001,7 +984,6 @@ local function createUI()
 		Config.AimToggleKey = k
 	end, 2)
 
-	-- Aba Credits
 	local _, credBody = makeCard(creditsPage, "Credits", "★", 1)
 	local credText = Instance.new("TextLabel")
 	credText.Size = UDim2.new(1, 0, 0, 56)
@@ -1017,7 +999,13 @@ local function createUI()
 	return mainFrame, outerGlow
 end
 
-local MainMenuFrame, MainMenuGlow = createUI()
+local MainMenuFrame, MainMenuGlow
+local okUI, errUI = pcall(function()
+	MainMenuFrame, MainMenuGlow = createUI()
+end)
+if not okUI then
+	warn("[0zMenu] Erro ao criar UI: " .. tostring(errUI))
+end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if not gameProcessed and input.KeyCode == Config.MenuKey then
