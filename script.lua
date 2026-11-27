@@ -68,6 +68,7 @@ local DefaultConfig = {
 	AimIgnoreFriends = true,
 	AimHumanize = true,
 	RecoilReduction = 0.0,
+	NoSpreadEnabled = false,
 	MenuOpen = true,
 	MenuKey = Enum.KeyCode.J,
 	UiScale = 1.0,
@@ -95,6 +96,7 @@ local Config = {
 	AimIgnoreFriends = DefaultConfig.AimIgnoreFriends,
 	AimHumanize = DefaultConfig.AimHumanize,
 	RecoilReduction = DefaultConfig.RecoilReduction,
+	NoSpreadEnabled = DefaultConfig.NoSpreadEnabled,
 	MenuOpen = DefaultConfig.MenuOpen,
 	MenuKey = DefaultConfig.MenuKey,
 	UiScale = DefaultConfig.UiScale,
@@ -142,6 +144,7 @@ local function serializeConfig()
 		AimIgnoreFriends = Config.AimIgnoreFriends,
 		AimHumanize = Config.AimHumanize,
 		RecoilReduction = Config.RecoilReduction,
+		NoSpreadEnabled = Config.NoSpreadEnabled,
 		MenuOpen = Config.MenuOpen,
 		MenuKeyName = Config.MenuKey.Name,
 		UiScale = Config.UiScale,
@@ -182,6 +185,7 @@ local function applySerializedConfig(data)
 	if type(data.AimIgnoreFriends) == "boolean" then Config.AimIgnoreFriends = data.AimIgnoreFriends end
 	if type(data.AimHumanize) == "boolean" then Config.AimHumanize = data.AimHumanize end
 	if type(data.RecoilReduction) == "number" then Config.RecoilReduction = data.RecoilReduction end
+	if type(data.NoSpreadEnabled) == "boolean" then Config.NoSpreadEnabled = data.NoSpreadEnabled end
 	if type(data.MenuOpen) == "boolean" then Config.MenuOpen = data.MenuOpen end
 	if data.MenuKeyName and Enum.KeyCode[data.MenuKeyName] then
 		Config.MenuKey = Enum.KeyCode[data.MenuKeyName]
@@ -1632,6 +1636,7 @@ local function createUI()
 		Config.AimIgnoreFriends = DefaultConfig.AimIgnoreFriends
 		Config.AimHumanize = DefaultConfig.AimHumanize
 		Config.RecoilReduction = DefaultConfig.RecoilReduction
+		Config.NoSpreadEnabled = DefaultConfig.NoSpreadEnabled
 		Config.MenuOpen = DefaultConfig.MenuOpen
 		Config.MenuKey = DefaultConfig.MenuKey
 		Config.UiScale = DefaultConfig.UiScale
@@ -1647,6 +1652,7 @@ local function createUI()
 		emitSync("EspFillTransparency", Config.EspFillTransparency)
 		emitSync("EspDepthMode", formatDepthMode(Config.EspDepthMode))
 		emitSync("RecoilReduction", Config.RecoilReduction)
+		emitSync("NoSpreadEnabled", Config.NoSpreadEnabled)
 		emitSync("MenuKey", Config.MenuKey)
 		emitSync("MenuOpen", Config.MenuOpen)
 		emitSync("AimbotEnabled", Config.AimbotEnabled)
@@ -1702,11 +1708,14 @@ local function createUI()
 		Config.EspDepthMode = parseDepthMode(opt)
 	end, ord(), "EspDepthMode")
 
-	local miscCard = createGroupCard(combatPage, "Diversos", "⚙", UDim2.new(0, 0, 0, 208), UDim2.new(0.485, 0, 0, 156))
+	local miscCard = createGroupCard(combatPage, "Diversos", "⚙", UDim2.new(0, 0, 0, 208), UDim2.new(0.485, 0, 0, 190))
 	o = 0
 	addSlider(miscCard, "Redução de Recuo", 0, 1, Config.RecoilReduction, function(v)
 		Config.RecoilReduction = v
 	end, ord(), "%", "RecoilReduction", false)
+	addToggle(miscCard, "Tiros Certos (Sem Spread)", Config.NoSpreadEnabled, function(v)
+		Config.NoSpreadEnabled = v
+	end, ord(), "NoSpreadEnabled")
 	addKeybind(miscCard, "Tecla do Menu", Config.MenuKey, false, function(newKey)
 		Config.MenuKey = newKey
 	end, ord(), "MenuKey")
@@ -2009,12 +2018,17 @@ RunService:BindToRenderStep("0zAimbot", AIM_PRIORITY, function()
 	local currentCF = Camera.CFrame
 	local currentLook = currentCF.LookVector
 
-	if Config.RecoilReduction and Config.RecoilReduction > 0 and fireHeld and lastCameraLook then
+	local effectiveRecoil = Config.RecoilReduction or 0
+	if Config.NoSpreadEnabled then
+		effectiveRecoil = math.max(effectiveRecoil, 0.85)
+	end
+
+	if effectiveRecoil > 0 and fireHeld and lastCameraLook then
 		local mouseDelta = UserInputService:GetMouseDelta()
-		if mouseDelta.Magnitude < 2 then
+		if mouseDelta.Magnitude < 2.5 then
 			local pitchDiff = currentLook.Y - lastCameraLook.Y
 			if pitchDiff > 0.0005 then
-				local correctedLook = (currentLook - Vector3.new(0, pitchDiff * Config.RecoilReduction, 0)).Unit
+				local correctedLook = (currentLook - Vector3.new(0, pitchDiff * effectiveRecoil, 0)).Unit
 				currentCF = CFrame.lookAt(currentCF.Position, currentCF.Position + correctedLook)
 				Camera.CFrame = currentCF
 				currentLook = correctedLook
@@ -2050,7 +2064,9 @@ RunService:BindToRenderStep("0zAimbot", AIM_PRIORITY, function()
 	local desired = CFrame.lookAt(camPos, aimWorldPos)
 
 	local alpha = math.clamp(Config.AimbotSmoothness, 0.02, 1)
-	if angleRad < 0.015 then
+	if Config.NoSpreadEnabled then
+		alpha = math.clamp(math.max(alpha, 0.65), 0.02, 1)
+	elseif angleRad < 0.015 then
 		alpha = math.clamp(alpha * 0.65, 0.02, 0.85)
 	elseif Config.AimHumanize then
 		alpha = math.clamp(alpha * (0.9 + math.random() * 0.2), 0.02, 1)
